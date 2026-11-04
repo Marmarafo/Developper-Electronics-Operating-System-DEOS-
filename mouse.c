@@ -64,7 +64,8 @@ static void mouse_irq(void) {
 }
 
 static int mouse_init_locked(void) {
-    while (inb(PS2_CMD) & 1) inb(PS2_DATA);      // bekleyen baytlari bosalt
+    if (inb(PS2_CMD) == 0xFF) return 0;                                  // i8042 yok (veri yolu "bos" okunuyor): PS/2 fare yok
+    for (int i = 0; i < 64 && (inb(PS2_CMD) & 1); i++) inb(PS2_DATA);   // bekleyen baytlari bosalt (sinirli: sonsuz donguye girme)      // bekleyen baytlari bosalt
 
     if (!wait_write()) return 0;
     outb(PS2_CMD, 0xA8);                         // aux portunu etkinlestir
@@ -106,3 +107,11 @@ int mouse_poll(mouse_event_t *ev) {
 }
 
 void mouse_get_stats(mouse_stats_t *s) { *s = g_stats; }
+
+// USB fare gibi baska kaynaklarin olay gondermesi icin (IRQ12 ile yarismamasi icin kesmeler kapatilir).
+void mouse_inject(int dx, int dy, UINT8 buttons) {
+    UINT64 f = irq_save();
+    mouse_event_t e = { dx, dy, buttons };
+    push(e);
+    irq_restore(f);
+}

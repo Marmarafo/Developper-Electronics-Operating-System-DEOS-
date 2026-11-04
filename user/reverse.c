@@ -1,7 +1,8 @@
 // Etkilesimli: klavyeden bir satir okur, tersini yazar. Bos satir = cikis.
 #include "ulib.h"
 
-int main(void) {
+int main(int argc, char **argv) {
+    (void)argc; (void)argv;
     u_puts("reverse: bir satir yazin, tersini yazdirayim (bos satir = cikis)\n");
     for (;;) {
         char line[128];

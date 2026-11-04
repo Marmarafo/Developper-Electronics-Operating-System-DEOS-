@@ -1,6 +1,7 @@
 /* DEOS -- kullanici modu gecisleri.
 
-   enter_user(rip, rsp): ring 3'e iretq ile atlar (CS=0x23, SS=0x1B, IF=1).
+   enter_user(rip, rsp, arg1, arg2): ring 3'e iretq ile atlar (CS=0x23, SS=0x1B, IF=1);
+                         kullanici koduna rdi=arg1 (argc), rsi=arg2 (argv) verilir.
    syscall_entry:        "syscall" talimatinin LSTAR hedefi.
 
    syscall girisinde CPU stack'i DEGISTIRMEZ: rsp hala KULLANICI stack'idir,
@@ -20,6 +21,8 @@ enter_user:
     pushq $0x202              /* RFLAGS: IF=1 */
     pushq $0x23               /* CS  = kullanici kod | RPL3 */
     pushq %rdi                /* RIP = giris noktasi */
+    mov %rdx, %rdi            /* arg1 -> rdi (argc) */
+    mov %rcx, %rsi            /* arg2 -> rsi (argv) */
     iretq
 
 .global syscall_entry

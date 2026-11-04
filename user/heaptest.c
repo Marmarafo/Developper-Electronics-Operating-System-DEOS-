@@ -9,7 +9,8 @@ static int fill_check(u8 *p, u64 n, u8 seed) {
     return 1;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    (void)argc; (void)argv;
     u8 seed = (u8)sys_getpid();
     u_puts("[heaptest pid "); u_putdec(sys_getpid()); u_puts("] heap basi: ");
     i64 base = sys_sbrk(0);

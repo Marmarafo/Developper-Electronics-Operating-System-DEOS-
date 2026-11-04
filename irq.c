@@ -22,6 +22,12 @@ void irq_register_handler(int irq, irq_handler_t handler) {
 // numarasidir (0-15) -- isr_handler'daki CPU exception vektoru DEGIL.
 void irq_dispatch(isr_frame_t *frame) {
     UINT64 irq_no = frame->int_no;
+    if (irq_no < 16 && !pic_irq_is_real((UINT8)irq_no)) {
+        // Spurious IRQ: IRQ7 icin EOI YOK (master kilitlenir); IRQ15 (slave) icin
+        // yalnizca master'a EOI gonderilir.
+        if (irq_no >= 8) pic_send_eoi_master();
+        return;
+    }
     if (irq_no < 16 && g_handlers[irq_no]) {
         g_handlers[irq_no]();
     }

@@ -92,3 +92,5 @@ void blk_scan_partitions(blockdev_t *disk) {
     }
     kfree(s);
 }
+
+void blk_mark_removed(blockdev_t *d) { d->read = 0; d->write = 0; }

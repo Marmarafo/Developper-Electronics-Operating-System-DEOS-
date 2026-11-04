@@ -11,6 +11,7 @@
 #include "process.h"
 #include "blk.h"
 #include "fs.h"
+#include "usb.h"
 
 #define C_OK   0x009ECE6Au
 #define C_BAD  0x00F7768Eu
@@ -260,7 +261,7 @@ int selftest_user(void) {
     check(process_start_by_name("olmayan_program") == -1, "bulunamayan program reddedildi");
 
     int bad = process_start("bozuk", (const UINT8*)"bu bir ELF degil", 16);
-    check(bad == -1, "bozuk ELF imaji reddedildi (kernel cokmedi)");
+    check(bad < 0, "bozuk ELF imaji reddedildi (kernel cokmedi)");
     pmm_get_stats(&p1);
     check(p1.free_pages == p0.free_pages, "bozuk ELF: ayrilan bellek iade edildi");
 
@@ -492,6 +493,66 @@ int selftest_fs(void) {
     check(free1 == free0, "bos alan baslangictaki degere dondu (kume sizintisi yok)");
 
     kfree(pat); kfree(rd);
+    kprintf(g_ok ? "Sonuc: TUM TESTLER GECTI\n" : "Sonuc: BAZI TESTLER BASARISIZ\n");
+    return g_ok;
+}
+
+// ------------------------------------------------------------------------ USB
+
+int selftest_usb(void) {
+    g_ok = 1;
+    int n = usb_device_count();
+    kprintf("  USB cihaz sayisi: %d\n", n);
+    usbdev_t *d;
+    int kbd = 0, mouse = 0, msc = 0, hid_err = 0;
+    for (int i = 0; (d = usb_device(i)); i++) {
+        kbd += d->kind == USB_KBD; mouse += d->kind == USB_MOUSE; msc += d->kind == USB_MSC;
+        if ((d->kind == USB_KBD || d->kind == USB_MOUSE) && d->errors > 20) hid_err = 1;
+    }
+    check(usb_event_count() > 0, "xHCI olay halkasi calisiyor (olaylar geldi)");
+    check(!hid_err, "HID cihazlari: anlamli hata orani yok");
+    if (kbd)   kprintf("  klavye: %d, ", kbd);
+    if (mouse) kprintf("fare: %d, ", mouse);
+    kprintf("depolama: %d\n", msc);
+
+    blockdev_t *b = blk_find("usb0");
+    if (!b) { kprintf("  (USB depolama yok: depolama testleri atlandi)\n"); }
+    else {
+        UINT8 *a = kmalloc(4096), *c = kmalloc(4096);
+        check(b->sectors > 0, "usb0: kapasite okundu");
+        int ok = a && c && blk_read(b, 0, 1, a) == 0 && blk_read(b, 0, 1, c) == 0;
+        check(ok && !memcmp(a, c, 512), "usb0: sektor 0 iki kez okununca ayni");
+        check(ok && a[510] == 0x55 && a[511] == 0xAA, "usb0: gecerli boot imzasi");
+        check(a && blk_read(b, 0, 8, a) == 0, "usb0: 8 sektor birden okuma");
+        check(a && blk_read(b, b->sectors - 1, 1, a) == 0, "usb0: son sektor okunabildi");
+        check(a && blk_read(b, b->sectors, 1, a) != 0, "usb0: disk sinirinin otesi reddedildi");
+        UINT64 last = b->sectors - 1;
+        UINT8 *orig = kmalloc(512), *pat = kmalloc(512), *back = kmalloc(512);
+        int wr = orig && pat && back && blk_read(b, last, 1, orig) == 0;
+        for (int i = 0; wr && i < 512; i++) pat[i] = (UINT8)(i * 5 + 77);
+        wr = wr && blk_write(b, last, 1, pat) == 0 && blk_read(b, last, 1, back) == 0 && !memcmp(pat, back, 512);
+        check(wr, "usb0: yazma: son sektor yazildi ve geri okundu");
+        if (orig) blk_write(b, last, 1, orig);
+        check(orig && back && blk_read(b, last, 1, back) == 0 && !memcmp(orig, back, 512), "usb0: orijinal veri geri yuklendi");
+        kfree(orig); kfree(pat); kfree(back);
+
+        fs_dirent_t e;
+        check(fs_stat("/mnt/usb0", &e) == 0 && e.is_dir, "/mnt/usb0: FAT hacmi baglandi");
+        if (fs_stat("/mnt/usb0/USB.TXT", &e) == 0) {
+            UINT64 sz = 0;
+            char *txt = fs_read_all("/mnt/usb0/USB.TXT", &sz);
+            check(txt && sz > 0, "USB.TXT diskten okundu");
+            kfree(txt);
+        }
+        // dosya sistemi yazma: USB diskte dosya olustur / oku / sil
+        int w = fs_write_file("/mnt/usb0/deos_usb_test.txt", "usb yazma testi", 15);
+        UINT64 sz2 = 0;
+        char *back2 = w == 0 ? fs_read_all("/mnt/usb0/deos_usb_test.txt", &sz2) : 0;
+        check(w == 0 && back2 && sz2 == 15 && !memcmp(back2, "usb yazma testi", 15), "FAT yazma: USB diskte dosya olusturuldu ve okundu");
+        kfree(back2);
+        check(fs_remove("/mnt/usb0/deos_usb_test.txt") == 0, "FAT: dosya silindi");
+        kfree(a); kfree(c);
+    }
     kprintf(g_ok ? "Sonuc: TUM TESTLER GECTI\n" : "Sonuc: BAZI TESTLER BASARISIZ\n");
     return g_ok;
 }

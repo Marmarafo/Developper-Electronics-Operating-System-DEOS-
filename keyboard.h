@@ -17,6 +17,7 @@
 #define KEY_CTRL(c) ((char)((c) - 'a' + 1))
 
 void keyboard_init(void);
+void keyboard_push(char c);          // baska bir surucu (USB) tus gonderir
 char keyboard_getchar(void);        // tampon bossa 0 doner
 UINT8 keyboard_last_scancode(void); // debug/gorsel kanit icin
 UINT8 keyboard_last_ascii(void);    // debug/gorsel kanit icin

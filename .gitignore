@@ -3,3 +3,7 @@
 *.img
 build_user/
 OVMF_VARS*.fd
+
+# Compiled outputs
+BOOTX64.EFI
+KERNEL.BIN

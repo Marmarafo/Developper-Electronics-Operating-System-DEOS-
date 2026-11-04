@@ -9,7 +9,7 @@ if [ ! -f "BOOTX64.EFI" ] || [ ! -f "KERNEL.BIN" ]; then echo "HATA: once ./buil
 
 pkill -9 qemu-system-x86_64 2>/dev/null || true
 
-bash ./make_image.sh
+./make_image.sh
 cp "$OVMF_VARS" ./OVMF_VARS_local.fd
 
 qemu-system-x86_64 \
@@ -18,7 +18,12 @@ qemu-system-x86_64 \
     -drive if=pflash,format=raw,file=./OVMF_VARS_local.fd \
     -drive format=raw,file=esp.img \
     -drive format=raw,file=data.img \
-    -display vnc=127.0.0.1:1 -monitor none \
+    -device qemu-xhci,id=xhci \
+    -device usb-kbd,bus=xhci.0 \
+    -device usb-mouse,bus=xhci.0 \
+    -drive if=none,id=usbdisk,format=raw,file=usb.img \
+    -device usb-storage,bus=xhci.0,drive=usbdisk \
+    -display gtk,grab-on-hover=on \
     -rtc base=localtime \
     -serial stdio \
     -net none

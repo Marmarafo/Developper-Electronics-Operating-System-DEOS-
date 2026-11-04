@@ -23,8 +23,11 @@
 #include "mouse.h"
 #include "pci.h"
 #include "ahci.h"
+#include "nvme.h"
+#include "acpi.h"
 #include "blk.h"
 #include "fs.h"
+#include "usb.h"
 #include "config.h"
 #include "cpu.h"
 #include "kprintf.h"
@@ -198,13 +201,15 @@ static void cmd_help(void) {
     kprintf("  spawn         arka planda CPU yiyen bir thread baslatir\n");
     kprintf("  kill <id>     thread sonlandirir\n");
     kprintf("  threadtest    zamanlayici otomatik testi\n");
-    kprintf("  progs         calistirilabilir kullanici programlari\n");
+    kprintf("  progs         gomulu kullanici programlari  (diger programlar: ls /bin)\n");
+    kprintf("  systest       ring 3 dosya/surec syscall testi    run sh   ring 3 kabugu\n");
     kprintf("  run <prog>    programi ring 3'te calistirir, bitmesini bekler\n");
     kprintf("  bg <prog>     programi arka planda baslatir\n");
     kprintf("  usertest      kullanici modu / surec izolasyonu testi\n");
     kprintf("  ls [yol]      dizin listesi        cd <yol> / pwd   dizin degistir / goster\n");
     kprintf("  cat <dosya>   dosya icerigi        disks / mounts / lspci   donanim ve diskler\n");
     kprintf("  disktest      depolama + dosya sistemi testi (okuma)\n");
+    kprintf("  lsusb         USB cihazlari     usbtest   USB depolama testi\n");
     kprintf("  touch/mkdir/rm/rmdir <yol>   dosya-dizin olustur / sil\n");
     kprintf("  write|append <dosya> <metin>  dosyaya yazar    cp|mv <kaynak> <hedef>   kopyala / tasi\n");
     kprintf("  df            disk kullanimi       fstest   dosya sistemi yazma testi\n");
@@ -391,7 +396,7 @@ static void cmd_disks(void) {
     for (int i = 0; i < blk_count(); i++) {
         blockdev_t *d = blk_get(i);
         UINT64 mb = d->sectors / 2048;
-        kprintf("  %-7s %6llu MB   %s%s\n", d->name, mb, d->model, d->parent ? "  (bolum)" : "");
+        kprintf("  %-7s %6llu MB   %s%s%s\n", d->name, mb, d->model, d->parent ? "  (bolum)" : "", d->read ? "" : "  (cikarildi)");
     }
 }
 
@@ -522,18 +527,28 @@ static void cmd_df(void) {
     }
 }
 
-static void cmd_run(const char *name, int wait) {
-    if (!*name) { kprintf("Kullanim: %s <program>   (liste: progs)\n", wait ? "run" : "bg"); return; }
+static void cmd_run(char *args, int wait) {
+    if (!*args) { kprintf("Kullanim: %s <program> [argumanlar]   (liste: progs, ls /bin)\n", wait ? "run" : "bg"); return; }
+    char *argv[MAX_ARGS + 1];
+    int argc = 0;
+    for (char *p = args; *p && argc < MAX_ARGS; ) {
+        while (*p == ' ') p++;
+        if (!*p) break;
+        if (*p == '"') { argv[argc++] = ++p; while (*p && *p != '"') p++; }
+        else           { argv[argc++] = p;   while (*p && *p != ' ') p++; }
+        if (*p) *p++ = 0;
+    }
+    argv[argc] = 0;
+    const char *name = argv[0];
     int pid = -1;
-    if (!strchr(name, '/')) pid = process_start_by_name(name);              // once gomulu programlar
-    if (pid == -1) {                                                        // sonra dosya sistemi: yol ya da /bin/<ad>.elf
+    if (!strchr(name, '/')) pid = process_spawn_embedded(name, argc, argv, g_cwd, 0, 0);      // once gomulu programlar
+    if (pid == -1) {                                                                          // sonra dosya sistemi
         char path[160];
         resolve(name, path, sizeof path);
-        pid = process_start_file(path);
+        pid = process_spawn_file(path, argc, argv, g_cwd, 0, 0);
         if (pid == -1 && !strchr(name, '/')) {
-            char alt[160];
-            ksnprintf(alt, sizeof alt, "/bin/%s.elf", name);
-            pid = process_start_file(alt);
+            ksnprintf(path, sizeof path, "/bin/%s.elf", name);
+            pid = process_spawn_file(path, argc, argv, g_cwd, 0, 0);
         }
     }
     if (pid == -1) { kprintf("Program bulunamadi: %s  ('progs' veya 'ls /bin')\n", name); return; }
@@ -562,6 +577,18 @@ static void cmd_mouse(void) {
     kprintf("  son paket: dx=%d dy=%d dugmeler=%d\n", m.last_dx, m.last_dy, m.last_buttons);
 }
 
+static void cmd_lsusb(void) {
+    kprintf("  PORT  HIZ           VID:PID    TUR                    RAPOR (hata)\n");
+    usbdev_t *d;
+    int n = 0;
+    for (int i = 0; (d = usb_device(i)); i++, n++) {
+        kprintf("  %-5d %-13s %04x:%04x  %-22s %u (%u)\n", d->port, usb_speed_name(d->speed), d->vid, d->pid,
+                d->removed ? "(cikarildi)" : usb_kind_name(d->kind), d->reports, d->errors);
+    }
+    if (!n) kprintf("  (USB cihazi yok)\n");
+    kprintf("  xHCI olay sayisi: %u\n", usb_event_count());
+}
+
 static void cmd_uptime(void) {
     UINT64 t = timer_get_ticks();
     kprintf("%llu saniye (%llu tick)\n", t / TIMER_HZ, t);
@@ -581,6 +608,8 @@ static void run_command(char *line) {
     else if (!strcmp(line, "uptime")) cmd_uptime();
     else if (!strcmp(line, "date"))   cmd_date();
     else if (!strcmp(line, "mouse"))  cmd_mouse();
+    else if (!strcmp(line, "lsusb"))  cmd_lsusb();
+    else if (!strcmp(line, "usbtest")) selftest_usb();
     else if (!strcmp(line, "pmm"))    cmd_pmm();
     else if (!strcmp(line, "heap"))   cmd_heap();
     else if (!strcmp(line, "memtest")) selftest_memory();
@@ -594,6 +623,7 @@ static void run_command(char *line) {
     else if (!strcmp(line, "progs"))  cmd_progs();
     else if (!strcmp(line, "run"))    cmd_run(args, 1);
     else if (!strcmp(line, "bg"))     cmd_run(args, 0);
+    else if (!strcmp(line, "systest")) { char a[] = "systest"; cmd_run(a, 1); }
     else if (!strcmp(line, "usertest")) selftest_user();
     else if (!strcmp(line, "ls"))     cmd_ls(args);
     else if (!strcmp(line, "cd"))     cmd_cd(args);
@@ -693,6 +723,13 @@ void kernel_main(BootInfo *bi) {
         log_ok(m);
     }
 
+    if (acpi_init(bi->rsdp)) {
+        char m[96]; ksnprintf(m, sizeof m, "ACPI: FADT hazir (OEM %s), MADT %s", acpi_oem(), acpi_madt() ? "var" : "yok");
+        log_ok(m);
+    } else {
+        log_ok("ACPI tablosu yok (legacy guc portlarina dusulecek)");
+    }
+
     thread_init();
     log_ok("Zamanlayici: preemptive thread'ler (10 ms dilim) + idle thread");
     syscall_init();
@@ -706,11 +743,22 @@ void kernel_main(BootInfo *bi) {
         ksnprintf(m, sizeof m, "PCI: %d aygit bulundu", pci_count());
         log_ok(m);
         int disks = ahci_init();
-        ksnprintf(m, sizeof m, "AHCI (SATA): %d disk, %d blok aygiti", disks, blk_count());
+        int nvmes = nvme_init();
+        ksnprintf(m, sizeof m, "AHCI (SATA): %d disk, NVMe: %d, toplam %d blok aygiti", disks, nvmes, blk_count());
         log_ok(m);
         int mounts = fs_init();
         if (mounts) { ksnprintf(m, sizeof m, "Dosya sistemi: %d FAT hacmi baglandi (/ = %s)", mounts, blk_count() ? "ilk hacim" : "-"); log_ok(m); }
         else        { console_set_color(C_YELLOW, C_BG); kprintf("[ -- ] Bagli dosya sistemi yok\n"); console_set_color(C_FG, C_BG); }
+
+        int nusb = usb_init();
+        if (nusb >= 0) {
+            int nk = 0, nm = 0, ns = 0;
+            for (int i = 0; usb_device(i); i++) { int kd = usb_device(i)->kind; nk += kd == USB_KBD; nm += kd == USB_MOUSE; ns += kd == USB_MSC; }
+            ksnprintf(m, sizeof m, "USB (xHCI): %d cihaz (klavye %d, fare %d, depolama %d)", usb_device_count(), nk, nm, ns);
+            log_ok(m);
+        } else {
+            console_set_color(C_GRAY, C_BG); kprintf("[ -- ] USB denetleyicisi (xHCI) bulunamadi\n"); console_set_color(C_FG, C_BG);
+        }
     }
 
     UINT64 pages[16];

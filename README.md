@@ -3,6 +3,16 @@
 x86_64 UEFI uzerinde calisan, sifirdan yazilmis bir isletim sistemi. Bootloader, kernel, suruculer,
 dosya sistemi, pencere yoneticisi ve kullanici programlari bu depodadir.
 
+## Degisiklik gunlugu
+### v0.8 (gercek donanima hazirlik, 1. paket)
+* Bootloader: GOP modu artik yalnizca 32bpp BGRX kabul eder; degilse uygun mod aranip `SetMode` ile degistirilir.
+* Bootloader: bellek haritasi icin dinamik tampon (EFI_BUFFER_TOO_SMALL buyumesi), ExitBootServices 5 deneme.
+* Bootloader: ACPI RSDP UEFI ConfigurationTable'dan alinip BootInfo.rsdp'ye tasinir.
+* ACPI: RSDP/XSDT/RSDT dogrulama, FADT + MADT bulma, gercek S5 kapatma (SCI enable + PM1a/PM1b); ACPI yoksa eski emulasyon portlarina duser.
+* Kesmeler: spurious IRQ 7/15 ayirmasi (IRQ7'ye EOI yok, IRQ15'te yalniz master EOI).
+* NVMe: PCI 01:08:02 taranir; admin + I/O kuyruk, namespace 1, PRP listesi, 512B sektor, yazma sonrasi flush; `nvme0` blok aygiti + bolum tarama.
+* io.h: `inw`; string: `strncpy` eklendi.
+
 ## Derleme ve calistirma
 Gereksinimler (Ubuntu): `gcc` (x86_64-linux-gnu), `binutils`, `qemu-system-x86`, `ovmf`, `mtools`.
 
@@ -24,9 +34,20 @@ Dosya sistemi: `ls [yol]`, `cd`, `pwd`, `cat <dosya>`, `touch`, `mkdir`, `rm`, `
 `append <dosya> <metin>`, `cp <kaynak> <hedef>`, `mv <kaynak> <hedef>`, `df`, `disks`, `mounts`.
 Bosluklu adlar icin tirnak kullanin: `mkdir "Yeni Klasor"`.
 Surecler ve sistem: `run <program|yol>`, `bg <program>`, `progs`, `ps`, `spawn`, `kill <id>`, `mem`, `pmm`, `heap`,
-`vm`, `info`, `uptime`, `date`, `lspci`, `mouse`, `echo`, `clear`, `reboot`.
+`vm`, `info`, `uptime`, `date`, `lspci`, `lsusb`, `mouse`, `echo`, `clear`, `reboot`.
 Hata ayiklama: `crash [div|null|write|rodata|nx|stack|tstack]`.
-Otomatik testler: `memtest`, `vmtest`, `threadtest`, `usertest`, `disktest [write <aygit>]`, `fstest`.
+Otomatik testler: `memtest`, `vmtest`, `threadtest`, `usertest`, `disktest [write <aygit>]`, `fstest`, `systest` (ring 3), `usbtest`.
+
+## Kullanici programlari (ring 3)
+`run sh` ile ring 3 kabugu: `cd`, `pwd`, `exit`, `>` / `>>` yonlendirme, `&` arka plan. Araclar `/bin` altinda:
+`ls cat echo mkdir rm touch cp mv wc hexdump systest`. Syscall'lar: open/close/read/write/lseek/stat/readdir/mkdir/
+unlink/rename/getcwd/chdir/spawn/wait (bkz. `syscall_abi.h`). Surec basina fd tablosu (16) ve calisma dizini vardir.
+
+## USB
+xHCI (USB 3.x/2.x) denetleyicisi, HID klavye/fare (boot protokolu, ABD duzeni, tus tekrari) ve USB depolama
+(Bulk-Only/SCSI, FAT hacmi `/mnt/usbN` altina baglanir). `lsusb`, `usbtest`.
+Bilinen sinirlar: hub'lar, EHCI/OHCI/UHCI, gercek donanimda test, calisirken takilan yeni cihazin taninmasi
+(cikarma calisir; QEMU'da sonradan `device_add` ile takilan cihaz tanimadi, nedeni arastirilmadi).
 
 ## Masaustu uygulamalari
 Terminal (kabuk), Dosyalar (gezinme, yeni klasor/dosya, sil, yeniden adlandir, program calistirma), Not Defteri
@@ -45,9 +66,9 @@ FAT yazma kodu, Linux'un kendi araclariyla capraz dogrulanir: DEOS ile dosya yaz
 | Bellek | `pmm.c` (bitmap sayfa ayirici), `heap.c` (kmalloc), `paging.c` (4 seviyeli, NX/WP/PAT, MMIO) |
 | Surecler | `thread.c` + `switch.S` (preemptive zamanlayici), `process.c`, `elf.c`, `syscall.c` + `usermode.S` |
 | Depolama | `pci.c`, `ahci.c` (SATA, DMA), `blk.c` (blok katmani, GPT/MBR), `fat.c` (FAT16/32), `fs.c` (baglama noktalari) |
-| Girdi | `keyboard.c` (PS/2), `mouse.c` (PS/2), `rtc.c` |
+| Girdi | `keyboard.c` (PS/2), `mouse.c` (PS/2), `rtc.c`, `xhci.c` + `usb_hid.c` + `usb_msc.c` (USB) |
 | Grafik / arayuz | `console.c`, `gfx.c` (cift tampon), `wm.c` (pencere yoneticisi), `apps.c` (uygulamalar) |
-| Kullanici | `user/` (programlar + `ulib`), `syscall_abi.h` |
+| Kullanici | `user/` (programlar + `ulib`), `syscall_abi.h`, `file.c` (acik dosya nesneleri) |
 | Testler | `selftest.c` |
 
 ## Tasarim notlari
@@ -60,7 +81,6 @@ FAT yazma kodu, Linux'un kendi araclariyla capraz dogrulanir: DEOS ile dosya yaz
   (AHCI FLUSH); FSInfo guncellenir. Bir global kilit GUI/kabuk/sureclerin es zamanli erisimini korur.
 
 ## Yol haritasi
-1. Dosya tanimlayicilari ve syscall'lar (`open/read/write/close/readdir`), kullanici programlari icin
-2. Kullanici modu kabuk ve standart kutuphane (libc cekirdegi); programlari diskten calistirmak icin `exec`
-3. Ag (virtio-net / e1000), USB (xHCI) ve NVMe, gercek donanim testleri
+1. USB: hub destegi, sicak takma, EHCI; NVMe; ag (virtio-net / e1000); gercek donanim testleri
+2. Kullanici kabugu icin pipe, ortam degiskenleri; malloc/stdio
 4. Cok cekirdek (SMP, APIC), bellek koruma iyilestirmeleri, kullanici modu kabuk

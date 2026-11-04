@@ -1,7 +1,8 @@
 // Kernel belleğine erismeye calisir: izolasyon calisiyorsa SADECE bu surec olur.
 #include "ulib.h"
 
-int main(void) {
+int main(int argc, char **argv) {
+    (void)argc; (void)argv;
     u_puts("fault: once kernel adresini write() ile yazdirmayi deniyorum...\n");
     i64 r = sys_write(1, (const void*)0xFFFF800000000000ULL, 16);
     u_puts("  write(kernel adresi) donus degeri = "); u_putdec(r);

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DEOS - Adim 13 derleme (depolama) scripti: bootloader + kullanici programlari (ELF) + kernel
+# DEOS - Adim 15 derleme scripti: bootloader + kullanici programlari (ELF) + kernel
 set -e
 cd "$(dirname "$0")"
 
@@ -17,7 +17,9 @@ x86_64-linux-gnu-objcopy -R .comment -R .note.gnu.property BOOTX64.EFI BOOTX64.E
 echo "--- Kullanici programlari derleniyor (ELF) ---"
 UCFLAGS="-ffreestanding -fPIE -fvisibility=hidden -fno-stack-protector -mno-red-zone -mgeneral-regs-only \
 -fcf-protection=none -fno-asynchronous-unwind-tables -O1 -Wall -Wextra -I."  # -fPIE: kod 4 GB ustunde, RIP-goreli adresleme sart
-PROGS="hello ticker heaptest reverse badboy fault"
+EMBED="hello ticker heaptest reverse badboy fault"          # kernel icine gomulur
+DISK="sh ls cat echo mkdir rm touch cp mv wc hexdump systest"  # sadece diskte (/BIN)
+PROGS="$EMBED $DISK"
 
 rm -rf build_user && mkdir build_user
 x86_64-linux-gnu-gcc -c user/ulib.c -o build_user/ulib.o $UCFLAGS
@@ -26,6 +28,8 @@ for p in $PROGS; do
     x86_64-linux-gnu-ld -T user/user.ld -nostdlib -z max-page-size=4096 -z noexecstack \
         -o build_user/$p.elf build_user/$p.o build_user/ulib.o
     x86_64-linux-gnu-strip --strip-all build_user/$p.elf
+done
+for p in $EMBED; do
     # ELF'i kernel'e gomulecek nesne dosyasina cevir (sembol: _binary_<ad>_elf_start/_end)
     (cd build_user && x86_64-linux-gnu-objcopy -I binary -O elf64-x86-64 -B i386:x86-64 \
         --rename-section .data=.rodata,alloc,load,readonly,data,contents $p.elf ${p}_elf.o)
@@ -34,11 +38,11 @@ done
 # Gomulu program tablosu
 {
     echo '#include "progs.h"'
-    for p in $PROGS; do
+    for p in $EMBED; do
         echo "extern const unsigned char _binary_${p}_elf_start[], _binary_${p}_elf_end[];"
     done
     echo 'const embedded_prog_t g_progs[] = {'
-    for p in $PROGS; do
+    for p in $EMBED; do
         echo "    { \"$p\", _binary_${p}_elf_start, _binary_${p}_elf_end },"
     done
     echo '    { 0, 0, 0 }'
@@ -50,7 +54,7 @@ echo "--- Kernel derleniyor (KERNEL.BIN) ---"
 CFLAGS="-ffreestanding -fno-stack-protector -fno-stack-check -fno-pic -fno-pie \
 -mno-red-zone -mgeneral-regs-only -Wall -Wextra"
 
-C_SOURCES="kernel gdt idt pic irq timer keyboard console kprintf string serial pmm heap paging thread elf process syscall selftest mouse rtc gfx wm apps pci ahci blk fat fs progs_table"
+C_SOURCES="kernel gdt idt pic irq timer keyboard console kprintf string serial pmm heap paging thread elf process syscall selftest mouse rtc gfx wm apps pci ahci nvme acpi blk fat fs file xhci usb_hid usb_msc progs_table"
 S_SOURCES="entry gdt_flush idt_load isr_stubs irq_stubs switch usermode"
 
 OBJS=""
@@ -64,7 +68,7 @@ for f in $S_SOURCES; do
     x86_64-linux-gnu-gcc -c $f.S -o $f.o
     OBJS="$OBJS $f.o"
 done
-for p in $PROGS; do OBJS="$OBJS build_user/${p}_elf.o"; done
+for p in $EMBED; do OBJS="$OBJS build_user/${p}_elf.o"; done
 
 x86_64-linux-gnu-ld -T kernel.ld -nostdlib -z noexecstack -o kernel.elf $OBJS
 

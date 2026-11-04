@@ -13,4 +13,6 @@ int selftest_user(void);
 int selftest_storage(const char *arg);
 // Dosya sistemi YAZMA testi (veri diskinde, yoksa kokte gecici dizinde; sonunda hepsini siler).
 int selftest_fs(void);
+// USB: cihazlar + (varsa) USB depolama okuma/yazma/dosya sistemi.
+int selftest_usb(void);
 #endif

@@ -4,7 +4,8 @@
 #pragma GCC diagnostic ignored "-Winfinite-recursion"
 static void deep(int n) { volatile char pad[1024]; pad[0] = (char)n; deep(n + 1); pad[1] = pad[0]; }
 
-int main(void) {
+int main(int argc, char **argv) {
+    (void)argc; (void)argv;
     u_puts("badboy -- bir tusa basin:\n");
     u_puts("  n = NULL oku      k = kernel belleginden oku   w = kernel .text'e yaz\n");
     u_puts("  c = cli (ayricalikli)   h = hlt (ayricalikli)   j = kernel'e atla\n");

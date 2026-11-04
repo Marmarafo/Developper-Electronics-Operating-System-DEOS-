@@ -20,6 +20,11 @@ qemu-system-x86_64 \
     -drive if=pflash,format=raw,file=./OVMF_VARS_local.fd \
     -drive format=raw,file=esp.img \
     -drive format=raw,file=data.img \
+    -device qemu-xhci,id=xhci \
+    -device usb-kbd,bus=xhci.0 \
+    -device usb-mouse,bus=xhci.0 \
+    -drive if=none,id=usbdisk,format=raw,file=usb.img \
+    -device usb-storage,bus=xhci.0,drive=usbdisk \
     -display gtk,grab-on-hover=on \
     -rtc base=localtime \
     -serial stdio \

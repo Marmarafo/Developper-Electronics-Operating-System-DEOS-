@@ -20,3 +20,11 @@ if [ ! -f data.img ]; then
     echo "Bu dosya ikinci diskte (data.img): kalici." > /tmp/_merhaba.txt
     mcopy -i data.img /tmp/_merhaba.txt ::/MERHABA.TXT
 fi
+
+# USB deneme diski (QEMU'da "-device usb-storage" ile takilir): FAT32, bir kez olusturulur, korunur.
+if [ ! -f usb.img ]; then
+    dd if=/dev/zero of=usb.img bs=1M count=32 2>/dev/null
+    mformat -i usb.img -F -v DEOSUSB ::
+    echo "Bu dosya USB diskte (usb.img)." > /tmp/_usb.txt
+    mcopy -i usb.img /tmp/_usb.txt ::/USB.TXT
+fi

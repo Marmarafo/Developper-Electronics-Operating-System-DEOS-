@@ -239,3 +239,35 @@ const char *fs_strerror(int e) {
     default: return "hata";
     }
 }
+
+int fs_mount_device(blockdev_t *d) {
+    lock();
+    int ok = 0;
+    if (g_nm < MAX_MOUNT) {
+        fatvol_t *v = fat_mount(d);
+        if (v) {
+            if (g_nm == 0) { g_m[0].mp[0] = '/'; g_m[0].mp[1] = 0; }
+            else ksnprintf(g_m[g_nm].mp, sizeof g_m[g_nm].mp, "/mnt/%s", d->name);
+            size_t n = strlen(d->name); if (n > 15) n = 15;
+            memcpy(g_m[g_nm].dev, d->name, n); g_m[g_nm].dev[n] = 0;
+            g_m[g_nm].vol = v;
+            g_nm++;
+            ok = 1;
+        }
+    }
+    unlock();
+    return ok;
+}
+
+void fs_unmount_device(blockdev_t *d) {
+    lock();
+    for (int i = g_nm - 1; i >= 1; i--) {                             // kok (0) kaldirilmaz
+        blockdev_t *vd = fat_device(g_m[i].vol);
+        if (vd == d || vd->parent == d) {
+            kfree(g_m[i].vol);
+            for (int j = i; j + 1 < g_nm; j++) g_m[j] = g_m[j + 1];
+            g_nm--;
+        }
+    }
+    unlock();
+}

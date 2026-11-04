@@ -11,6 +11,7 @@ typedef struct {
 int  mouse_init(void);
 // Siradaki olayi alir; olay yoksa 0 doner.
 int  mouse_poll(mouse_event_t *ev);
+void mouse_inject(int dx, int dy, UINT8 buttons);   // USB fare olay gonderir
 
 
 // Tanilama sayaclari ('mouse' komutu)

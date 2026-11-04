@@ -1,6 +1,7 @@
 #include "ulib.h"
 
-int main(void) {
+int main(int argc, char **argv) {
+    (void)argc; (void)argv;
     int local = 0;
     u_puts("Merhaba! Ben ring 3'te (kullanici modunda) calisan bir programim.\n");
     u_puts("  pid        : "); u_putdec(sys_getpid()); u_puts("\n");

@@ -18,6 +18,7 @@
 #include "kprintf.h"
 #include "string.h"
 #include "cpu.h"
+#include "process.h"
 
 #define STACK_PAGES 8                 // 32 KB (+ 1 koruma sayfasi)
 #define TIMER_HZ    100
@@ -76,7 +77,7 @@ static void reap(void) {
         if (t->state == T_DEAD && t != g_current) {
             prev->next = nx;
             if (t->cr3 != g_kernel_cr3) paging_destroy_user_space(t->cr3);   // surecin tum kullanici bellegi
-            if (t->proc) kfree(t->proc);
+            if (t->proc) process_free(t->proc);                              // acik dosyalari kapat + proc'u sal
             paging_map_in(g_kernel_cr3, t->stack_base, t->stack_base, PTE_W | PTE_NX);   // koruma sayfasini geri esle
             pmm_free_pages(t->stack_base, 1 + STACK_PAGES);
             kfree(t);

@@ -19,6 +19,7 @@ int         blk_count(void);
 blockdev_t *blk_get(int index);
 blockdev_t *blk_find(const char *name);
 
+void blk_mark_removed(blockdev_t *d);                  // aygit cikarildi: okuma/yazma artik hata doner
 int blk_read(blockdev_t *d, UINT64 lba, UINT32 count, void *buf);              // sinir denetimli
 int blk_write(blockdev_t *d, UINT64 lba, UINT32 count, const void *buf);
 

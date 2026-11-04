@@ -3,6 +3,7 @@
 // Hiz icin -O2 ile derlenir.
 #include "types.h"
 #include "wm.h"
+#include "acpi.h"
 #include "apps.h"
 #include "gfx.h"
 #include "mouse.h"
@@ -295,11 +296,7 @@ static void repaint(int x, int y, int w, int h) {
 static void do_reboot(void) { outb(0x64, 0xFE); for (;;) __asm__ __volatile__ ("hlt"); }
 
 static void do_shutdown(void) {
-    outw(0x604, 0x2000);      // QEMU (q35/ICH9) ACPI kapatma
-    outw(0xB004, 0x2000);     // eski QEMU/Bochs
-    outw(0x4004, 0x3400);     // VirtualBox
-    __asm__ __volatile__ ("cli");
-    for (;;) __asm__ __volatile__ ("hlt");
+    acpi_poweroff();          // ACPI S5; yoksa QEMU/Bochs/VBox portlari + hlt
 }
 
 static int in_rect(int px, int py, int x, int y, int w, int h) { return px >= x && px < x + w && py >= y && py < y + h; }

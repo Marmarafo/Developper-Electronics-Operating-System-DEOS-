@@ -7,6 +7,7 @@
 #include "irq.h"
 #include "pic.h"
 #include "io.h"
+#include "cpu.h"
 
 #define KBD_DATA_PORT 0x60
 #define KBD_BUF_SIZE  256
@@ -125,3 +126,10 @@ char keyboard_getchar(void) {
 
 UINT8 keyboard_last_scancode(void) { return g_last_scancode; }
 UINT8 keyboard_last_ascii(void)    { return g_last_ascii; }
+
+// USB klavye gibi baska kaynaklarin tus gondermesi icin (thread guvenli).
+void keyboard_push(char c) {
+    UINT64 f = irq_save();
+    buf_push(c);
+    irq_restore(f);
+}

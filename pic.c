@@ -51,6 +51,14 @@ void pic_send_eoi(UINT8 irq) {
     outb(PIC1_CMD, PIC_EOI);
 }
 
+void pic_send_eoi_master(void) { outb(PIC1_CMD, PIC_EOI); }
+
+int pic_irq_is_real(UINT8 irq) {
+    UINT16 port = (irq < 8) ? PIC1_CMD : PIC2_CMD;
+    outb(port, 0x0B);                 // OCW3: ISR'i oku
+    return (inb(port) & (1u << (irq & 7))) != 0;
+}
+
 static void pic_set_mask_bit(UINT8 irq, int set) {
     UINT16 port = (irq < 8) ? PIC1_DATA : PIC2_DATA;
     UINT8 bit = (irq < 8) ? irq : (UINT8)(irq - 8);

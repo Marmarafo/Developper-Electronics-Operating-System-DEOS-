@@ -2,6 +2,7 @@
 #define DEOS_FS_H
 #include "types.h"
 #include "fat.h"
+#include "blk.h"
 
 typedef fat_entry_t fs_dirent_t;
 
@@ -26,6 +27,8 @@ int  fs_rename(const char *from, const char *to);                               
 int  fs_space(const char *abs_path, UINT64 *total_bytes, UINT64 *free_bytes);
 const char *fs_strerror(int err);
 
+int  fs_mount_device(blockdev_t *d);                     // bir aygittaki FAT hacmini baglar (1 = baglandi)
+void fs_unmount_device(blockdev_t *d);                   // aygit cikarilirken
 int  fs_mount_count(void);
 const char *fs_mount_info(int i, const char **mountpoint, const char **dev, int *type);
 
