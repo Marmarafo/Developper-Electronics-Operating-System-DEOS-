@@ -1,0 +1,5 @@
+*.o
+*.elf
+*.img
+build_user/
+OVMF_VARS*.fd

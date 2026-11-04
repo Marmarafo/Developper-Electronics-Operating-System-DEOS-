@@ -1,0 +1,2 @@
+Ikinci satirdan okunan not.
+Uzun dosya adlari (LFN) da desteklenir: ls /docs
