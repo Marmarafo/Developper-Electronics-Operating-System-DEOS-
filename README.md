@@ -80,6 +80,32 @@ FAT yazma kodu, Linux'un kendi araclariyla capraz dogrulanir: DEOS ile dosya yaz
 * FAT: okuma + yazma (dosya/dizin olusturma, silme, yeniden adlandirma, uzun adlar). Her yazma aninda diske gider
   (AHCI FLUSH); FSInfo guncellenir. Bir global kilit GUI/kabuk/sureclerin es zamanli erisimini korur.
 
+## Adim 20 (v2.0) -- Gercek Donanim Paketi
+* **SMAP** etkinlestirme: CR4.21, user_copy/paging dogrudan erisimleri `stac/clac` ile sarmalandi
+* **Stack Canary**: `-fstack-protector-strong`, `__stack_chk_fail` panik handler'i
+* **UDP + DHCP Client**: UDP gonderme/alma, DHCP Discover (baslangic)
+* **IOMMU/VT-d tespiti**: PCI tarama ile yaklasik tespit (gercek DMAR ayrilstirmasi sonraki adimda)
+* **USB Hub tespiti**: Hub cihazlari algilaniyor (tam numaralandirma sonraki adimda)
+
+## Adim 19 (v1.1) -- Ethernet
+* Intel e1000/8254x (+e1000e) suruculeru: PCI 02:00, EEPROM/RAL'dan MAC, legacy TX/RX descriptor halkalari
+* Minimal yigin: ARP (4 girisli onbellek + otomatik yanit), IPv4, ICMP echo -- disari `ping` ve gelen ping'e yanit
+* Yoklama tabanli RX (10 ms 'net' thread); kesme/MSI simdilik yok
+* Kabuk: `ping A.C.D`, `netinfo`, `netcfg A.C.D` (varsayilan IP 10.0.2.15/24, slirp icin)
+* Sinir: tek eszamanli TX, <4GB DMA (sistem geneli sinir), UDP/TCP sonraki adimda
+* QEMU testi: '-nic user,model=e1000' ile 'ping 10.0.2.2' (host) denenebilir
+
+## Adim 18 (v1.0) -- Turkce giris
+* Turkce Q klavye duzeni varsayilan oldu (PS/2 ve USB HID her ikisi icin); Alt+Shift ile US/TR gecisi
+* Turkce harf baytlari 0x90-0x9B araliginda, KEY_* tus kodlariyla (0x81-0x89) cakismaz
+* font8x16 256 girise genisledi; ğüşıöç ve buyuk harf glifleri elle cizildi
+* Noktalama (dig/ust karakterler) TR Q'ya yakin secildi; tam TR dagilimi icin keymap tablolarina bakin
+
+## Adim 17 (v0.9) -- gercek donanim
+* USB sicak takma: numaralandirma basarisizsa port ~2 sn boyunca tekrar dener (donanimin elektriksel olarak hazir olmamasi sorunu)
+* Yeniden baslatma: ACPI FADT RESET_REG (ACPI 2.0+ RESET_REG_SUP) kullanilir, yoksa 8042 fallback
+* PS/2'siz makinelerde giris: USB klavye `keyboard_push`, USB fare `mouse_inject` uzerinden ayni kuyruklara akar; wm PS/2 fare olmadan da baslar
+
 ## Yol haritasi
 1. USB: hub destegi, sicak takma, EHCI; NVMe; ag (virtio-net / e1000); gercek donanim testleri
 2. Kullanici kabugu icin pipe, ortam degiskenleri; malloc/stdio

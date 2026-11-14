@@ -6,6 +6,7 @@
 int      acpi_init(UINT64 rsdp_phys);      // 1 = FADT bulundu (sayfalama aciktan SONRA cagrin)
 int      acpi_present(void);
 void     acpi_poweroff(void);              // donmez; ACPI yoksa bilinen emulasyon portlarina duser
+void     acpi_reboot(void);                  // FADT RESET_REG (varsa), yoksa 8042 reset
 UINT64   acpi_madt(void);                  // MADT fiziksel adresi (yoksa 0)
 const char *acpi_oem(void);
 

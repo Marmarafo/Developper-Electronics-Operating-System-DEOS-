@@ -31,7 +31,7 @@ static void fill_rect(UINT32 x, UINT32 y, UINT32 w, UINT32 h, UINT32 color) {
 static void draw_cell(UINT32 col, UINT32 row, char ch, UINT32 fg, UINT32 bg) {
     unsigned char c = (unsigned char)ch;
     if (c >= 128) c = '?';
-    const unsigned char *glyph = font8x16[c];
+    const unsigned char *glyph = font8x16[(UINT8)c];
     UINT32 x0 = col * g_cw, y0 = row * g_ch;
     for (UINT32 gy = 0; gy < 16; gy++) {
         unsigned char bits = glyph[gy];

@@ -9,6 +9,7 @@
 //   * Sayfa 0 ESLENMEZ: NULL gostericisi kullanmak aninda page fault verir.
 #include "types.h"
 #include "paging.h"
+#include "cpu.h"
 #include "pmm.h"
 #include "string.h"
 #include "kprintf.h"

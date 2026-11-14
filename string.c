@@ -2,6 +2,7 @@
 // (ornegin buyuk struct kopyalarinda) kendiliginden memcpy/memset cagirir,
 // bu yuzden freestanding kernelde bunlarin var olmasi sarttir.
 #include "string.h"
+#include "io.h"
 
 // rep movsb / stosb: modern CPU'larda (ve QEMU'da) bayt dongusunden cok daha hizli.
 // Yon bayragi (DF) hicbir zaman set edilmez: kesme gelirse bozulmasin diye geriye kopyalamada std KULLANMIYORUZ.
@@ -81,4 +82,16 @@ char *strncpy(char *dst, const char *src, size_t n) {
     for (; i < n && src[i]; i++) dst[i] = src[i];
     for (; i < n; i++) dst[i] = 0;
     return dst;
+}
+
+// Stack canary handler (GCC -fstack-protector-strong)
+void __stack_chk_fail(void) {
+    // Seri port uzerinden panik (console erisilemeyebilir)
+    const char *msg = "STACK SMASHING DETECTED - HALT\n";
+    for (const char *p = msg; *p; p++) {
+        while (!(inb(0x3FD) & 0x20));  // THRE
+        outb(0x3F8, *p);
+    }
+    __asm__ __volatile__("cli");
+    for (;;) __asm__ __volatile__("hlt");
 }

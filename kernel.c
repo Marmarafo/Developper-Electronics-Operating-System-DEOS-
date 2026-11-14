@@ -24,6 +24,8 @@
 #include "pci.h"
 #include "ahci.h"
 #include "nvme.h"
+#include "net.h"
+#include "iommu.h"
 #include "acpi.h"
 #include "blk.h"
 #include "fs.h"
@@ -644,10 +646,12 @@ static void run_command(char *line) {
     else if (!strcmp(line, "mv"))     cmd_cp_mv(args, 1);
     else if (!strcmp(line, "df"))     cmd_df();
     else if (!strcmp(line, "vmtest")) selftest_paging(g_bi);
+    else if (!strncmp(line, "ping ", 5)) net_ping(line + 5);
+    else if (!strcmp(line, "netinfo")) net_info();
+    else if (!strncmp(line, "netcfg ", 7)) net_set_ip(line + 7);
     else if (!strcmp(line, "reboot")) {
         kprintf("Yeniden baslatiliyor...\n");
-        outb(0x64, 0xFE); // klavye denetleyicisi uzerinden CPU reset
-        while (1) { __asm__ __volatile__ ("hlt"); }
+        acpi_reboot();   // FADT RESET_REG (ACPI 2.0+), yoksa 8042 reset
     }
     else {
         console_set_color(C_RED, C_BG);
@@ -749,6 +753,13 @@ void kernel_main(BootInfo *bi) {
         int mounts = fs_init();
         if (mounts) { ksnprintf(m, sizeof m, "Dosya sistemi: %d FAT hacmi baglandi (/ = %s)", mounts, blk_count() ? "ilk hacim" : "-"); log_ok(m); }
         else        { console_set_color(C_YELLOW, C_BG); kprintf("[ -- ] Bagli dosya sistemi yok\n"); console_set_color(C_FG, C_BG); }
+
+        int iommu = iommu_detect(); (void)iommu;
+        { char m[96]; ksnprintf(m, sizeof m, "IOMMU/VT-d: %s", iommu_name()); log_ok(m); }
+
+        int nnet = net_init();
+        if (nnet) { ksnprintf(m, sizeof m, "Ethernet: Intel e1000 uyumlu NIC hazir (MAC %s)", net_mac_str()); log_ok(m); }
+        else        { log_ok("Ethernet: e1000 uyumlu NIC bulunamadi"); }
 
         int nusb = usb_init();
         if (nusb >= 0) {

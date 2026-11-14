@@ -54,7 +54,7 @@ echo "--- Kernel derleniyor (KERNEL.BIN) ---"
 CFLAGS="-ffreestanding -fno-stack-protector -fno-stack-check -fno-pic -fno-pie \
 -mno-red-zone -mgeneral-regs-only -Wall -Wextra"
 
-C_SOURCES="kernel gdt idt pic irq timer keyboard console kprintf string serial pmm heap paging thread elf process syscall selftest mouse rtc gfx wm apps pci ahci nvme acpi blk fat fs file xhci usb_hid usb_msc progs_table"
+C_SOURCES="kernel gdt idt pic irq timer keyboard console kprintf string serial pmm heap paging thread elf process syscall selftest mouse rtc gfx wm apps pci ahci nvme acpi net iommu blk fat fs file xhci usb_hid usb_msc progs_table"
 S_SOURCES="entry gdt_flush idt_load isr_stubs irq_stubs switch usermode"
 
 OBJS=""

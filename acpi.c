@@ -13,6 +13,8 @@ static UINT64 g_rsdp, g_fadt, g_madt, g_facs, g_dsdt;
 static UINT64 g_pm1a_evt, g_pm1b_evt, g_pm1a_cnt, g_pm1b_cnt;
 static UINT8  g_pm1_evt_len, g_pm1_cnt_len;
 static UINT32 g_smi_cmd; static UINT8 g_acpi_enable, g_acpi_disable;
+static UINT64 g_reset_reg; static UINT8 g_reset_space, g_reset_width, g_reset_val;
+static int    g_reset_ok;
 static char   g_oem[8];
 static int    g_present;
 
@@ -64,6 +66,16 @@ static void parse_fadt(UINT64 f) {
     if (rd8(f + 8) >= 2) {  // ACPI 2.0+
         UINT64 xf = rd64(f + 128); if (xf) g_facs = xf;
         UINT64 xd = rd64(f + 136); if (xd) g_dsdt = xd;
+    }
+    // FADT flags (ofset 111) bit10 RESET_REG_SUP: ACPI 2.0+ reset mekanizmasi.
+    g_reset_ok = 0;
+    if ((rd32(f + 111) & (1u << 10)) && rd8(f + 8) >= 2) {
+        UINT8 space = rd8(f + 112), width = rd8(f + 113);
+        UINT64 addr = rd64(f + 116);
+        if (addr && (space == 1 || space == 0) && (width == 8 || width == 16 || width == 32)) {
+            g_reset_space = space; g_reset_width = width; g_reset_reg = addr;
+            g_reset_val = rd8(f + 124); g_reset_ok = 1;
+        }
     }
 }
 
@@ -120,5 +132,22 @@ void acpi_poweroff(void) {
     outw(0xB004, 0x2000);
     outw(0x4004, 0x3400);
     __asm__ __volatile__ ("cli");
+    for (;;) __asm__ __volatile__ ("hlt");
+}
+
+void acpi_reboot(void) {
+    if (g_reset_ok) {
+        if (g_reset_space == 1) {              // System I/O
+            if (g_reset_width == 8)       outb((UINT16)g_reset_reg, g_reset_val);
+            else if (g_reset_width == 16) outw((UINT16)g_reset_reg, g_reset_val);
+            else                          outl((UINT16)g_reset_reg, g_reset_val);
+        } else {                               // System Memory (birebir esleme)
+            if (g_reset_width == 8)       *(volatile UINT8  *)(UINTN)g_reset_reg = g_reset_val;
+            else if (g_reset_width == 16) *(volatile UINT16 *)(UINTN)g_reset_reg = g_reset_val;
+            else                          *(volatile UINT32 *)(UINTN)g_reset_reg = g_reset_val;
+        }
+        for (volatile int i = 0; i < 1000000; i++) { }   // donanimin reset'i almasi icin kisa bekleme
+    }
+    outb(0x64, 0xFE);                              // 8042 yolu (varsa) - genel fallback
     for (;;) __asm__ __volatile__ ("hlt");
 }

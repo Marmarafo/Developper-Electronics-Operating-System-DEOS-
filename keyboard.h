@@ -16,6 +16,14 @@
 // Ctrl+harf: 1..26 (Ctrl+A = 1, Ctrl+S = 19, ...). Ornegin KEY_CTRL('s').
 #define KEY_CTRL(c) ((char)((c) - 'a' + 1))
 
+// Turkce harf baytlari (font 0x90-0x9B arasinda; KEY_* kodlariyla cakismaz):
+// kucuk: ğ=0x90 ü=0x92 ş=0x94 ı=0x96 i=0x69(I'nin noktali hali ASCII) ö=0x98 ç=0x9A
+// buyuk: Ğ=0x91 Ü=0x93 Ş=0x95 İ=0x97 Ö=0x99 Ç=0x9B
+#define KBD_LAYOUT_US 0
+#define KBD_LAYOUT_TR 1
+int  keyboard_get_layout(void);      // aktif duzen
+void keyboard_toggle_layout(void);   // US <-> TR
+
 void keyboard_init(void);
 void keyboard_push(char c);          // baska bir surucu (USB) tus gonderir
 char keyboard_getchar(void);        // tampon bossa 0 doner

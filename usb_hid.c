@@ -12,11 +12,26 @@ typedef struct {
     UINT8 *buf;
     int dci, len, is_kbd, caps, consec_err;
     UINT8 prev[8];
+    UINT8 alt_shift_armed;
     UINT8 rep_key;
     UINT64 rep_next;
 } hid_t;
 
 static char hid_char(UINT8 u, int shift, int caps) {
+    int eff = (shift != caps);   // etkin buyuk/kucuk durumu
+    if (keyboard_get_layout() == KBD_LAYOUT_TR) {
+        // TR Q: ek harfler US noktalama pozisyonlarinda (fiziksel yerlesim ayni).
+        switch (u) {
+        case 0x0C: return eff ? 0x97 : 0x96;   // i  -> ı / İ
+        case 0x2F: return eff ? 0x91 : 0x90;   // [  -> ğ / Ğ
+        case 0x30: return eff ? 0x93 : 0x92;   // ]  -> ü / Ü
+        case 0x33: return eff ? 0x95 : 0x94;   // ;  -> ş / Ş
+        case 0x34: return eff ? 'I'  : 'i';    // '  -> i / I (noktali i tusu)
+        case 0x36: return eff ? 0x99 : 0x98;   // ,  -> ö / Ö
+        case 0x37: return eff ? 0x9B : 0x9A;   // .  -> ç / Ç
+        default: break;
+        }
+    }
     if (u >= 0x04 && u <= 0x1D) { char c = (char)('a' + (u - 4)); if (shift != caps) c = (char)(c - 32); return c; }
     if (u >= 0x1E && u <= 0x27) { static const char n[] = "1234567890", s[] = "!@#$%^&*()"; return shift ? s[u - 0x1E] : n[u - 0x1E]; }
     switch (u) {
@@ -77,6 +92,12 @@ int usb_hid_attach(usbdev_t *d, int is_kbd, int in_dci, int maxpkt) {
     return 1;
 }
 
+static void kbd_mods(hid_t *h, UINT8 mods) {
+    int alt_shift = ((mods & 0x44) != 0) && ((mods & 0x22) != 0);   // Alt+Shift
+    if (alt_shift && !h->alt_shift_armed) keyboard_toggle_layout();
+    h->alt_shift_armed = (UINT8)alt_shift;
+}
+
 void usb_hid_poll(usbdev_t *d, UINT64 now) {
     hid_t *h = d->drv;
     if (!h) return;
@@ -91,7 +112,7 @@ void usb_hid_poll(usbdev_t *d, UINT64 now) {
         if (code == 1 || code == 13) {
             h->consec_err = 0;
             d->reports++;
-            if (h->is_kbd) { if (got >= 8) kbd_report(h, r, now); }
+            if (h->is_kbd) { if (got >= 8) { kbd_mods(h, r[0]); kbd_report(h, r, now); } }
             else if (got >= 3) mouse_inject((signed char)r[1], (signed char)r[2], (UINT8)(r[0] & 7));
         } else {
             d->errors++;

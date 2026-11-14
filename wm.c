@@ -293,7 +293,7 @@ static void repaint(int x, int y, int w, int h) {
 
 // ------------------------------------------------------------------- girdi
 
-static void do_reboot(void) { outb(0x64, 0xFE); for (;;) __asm__ __volatile__ ("hlt"); }
+static void do_reboot(void) { acpi_reboot(); }
 
 static void do_shutdown(void) {
     acpi_poweroff();          // ACPI S5; yoksa QEMU/Bochs/VBox portlari + hlt

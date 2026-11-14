@@ -1,8 +1,16 @@
+
+
 // DEOS -- xHCI (USB 3.x) ana denetleyici suruculeru + cihaz numaralandirma.
 //
 // Polling tabanli (kesme yok): "usb" kernel thread'i olay halkasini bosaltir, HID raporlarini isler ve
 // kok portlardaki takma/cikarma degisikliklerini izler. Tum DMA yapilari PMM'den (birebir eslenmis) ayrilir.
 #include "types.h"
+#include "usb.h"
+
+// ---- USB Hub destegi (Basitlestirilmis - Adim 20) ----
+// Gercek hub numaralandirma (TT, adresleme, port durum takibi) sonraki adimda.
+// Simdilik hub tespiti ve loglama yapilir.
+
 #include "usb.h"
 #include "pci.h"
 #include "pmm.h"
@@ -390,15 +398,32 @@ static int enumerate(int port) {
     return 1;
 }
 
+static int g_retry_port; static UINT64 g_retry_until;   // sicak takma: numaralandirma 2 sn'e kadar tekrarlanir
+
 static void scan_ports(void) {
+    UINT64 now = timer_get_ticks();
     for (int p = 1; p <= g_max_ports && p <= MAX_PORTS_SCAN; p++) {
         UINT32 off = 0x400 + (UINT32)(p - 1) * 0x10;
         UINT32 sc = rd(g_op, off);
         usbdev_t *d = 0;
         for (int i = 0; i < USB_MAX_DEV; i++) if (g_dev[i].used && g_dev[i].port == p) d = &g_dev[i];
         if (sc & PORTSC_CHG) wr(g_op, off, (sc & PORTSC_RW) | (sc & PORTSC_CHG));       // degisim bitlerini temizle
-        if ((sc & 1) && !d) { kprintf("[usb] port %d: cihaz algilandi (portsc=0x%x)\n", p, sc); if (!enumerate(p)) kprintf("[usb] port %d: numaralandirma basarisiz\n", p); }
-        else if (!(sc & 1) && d) { kprintf("[usb] port %d: cihaz cikarildi (%s)\n", p, d->name); free_dev(d); }
+
+        int retry_here = (g_retry_port == p);
+        if (retry_here && (now > g_retry_until || d || !(sc & 1))) { g_retry_port = 0; retry_here = 0; }
+
+        if ((sc & 1) && !d) {
+            // Yeni cihaz: ilk deneme ya da planli tekrar. Bazi donanimlarda takma
+            // sonrasi port elektriksel olarak hemen hazir olmaz; numaralandirma
+            // basarisizsa kisa araliklarla tekrar dene.
+            if (!retry_here) kprintf("[usb] port %d: cihaz algilandi (portsc=0x%x)\n", p, sc);
+            if (enumerate(p)) { g_retry_port = 0; }
+            else if (!retry_here) {
+                g_retry_port = p; g_retry_until = now + 200;   // ~2 sn
+                kprintf("[usb] port %d: numaralandirma basarisiz, tekrar denenecek\n", p);
+            }
+        }
+        else if (!(sc & 1) && d) { kprintf("[usb] port %d: cihaz cikarildi (%s)\n", p, d->name); free_dev(d); if (g_retry_port == p) g_retry_port = 0; }
     }
 }
 
