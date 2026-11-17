@@ -1,0 +1,14 @@
+# derleme ciktilari
+*.o
+kernel.elf
+KERNEL.BIN
+BOOTX64.EFI
+build_user/
+progs_table.c
+# test imajlari / log
+esp.img
+data.img
+usb.img
+nvme.img
+OVMF_VARS_*.fd
+ci_serial.log
